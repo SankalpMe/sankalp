@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons"
+          rel="stylesheet">
+    <link rel="stylesheet" href="/css/chessboard-0.3.0.min.css">
+    <link rel="stylesheet" href="/css/main.css">
+
+</head>
+<body>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.2/chess.js"></script>
+<script src="/js/chessboard-0.3.0.js"></script>
+<div id="board" style="width: 800px"></div>
+<div id="history">
+    <h1>History</h1>
+    <div id="b1" class="bd"></div>
+    <div id="b2" class="bd"></div>
+    <div id="b3" class="bd"></div><br>
+    <button class="left ntm dis"><i class="material-icons">keyboard_arrow_left</i></button><button class="right ntm"><i class="material-icons">keyboard_arrow_right</i></button>
+</div>
+<div id="info">
+    <h1>Game</h1>
+    <span id="rt" class="hde">READY!</span>
+    <br>
+    <table style="display: inline-block;margin-top: 40px">
+        <tr><td style="font-weight: bold">CHECK : </td><td><input id="chk" type="checkbox"></td></tr>
+        <tr></tr>
+        <tr><td style="font-weight: bold">CHECKMATE : </td><td><input id="chkm" type="checkbox"></td></tr>
+    </table>
+    <div style="margin-top: 60px;text-align: center">
+        <div id="ldr" class="hde"></div>
+    </div>
+
+</div>
+
+<script>
+
+    /*
+    $.get("/move",{'fen':'rnbqkbnr/pppppppp/8/8/8/4P3/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},function(data){
+        console.log(data);
+        alert(data);
+    }
+    */
+    var histFEN = [];
+    var crpos = 0;
+    var removeGreySquares = function() {
+        $('#board .square-55d63').css('background', '');
+    };
+
+    var greySquare = function(square) {
+        var squareEl = $('#board .square-' + square);
+
+        var background = '#a9a9a9';
+        if (squareEl.hasClass('black-3c85d') === true) {
+            background = '#696969';
+        }
+
+        squareEl.css('background', background);
+    };
+
+    var board,
+        game = new Chess(),
+        statusEl = $('#status'),
+        fenEl = $('#fen'),
+        pgnEl = $('#pgn');
+
+    // do not pick up pieces if the game is over
+    // only pick up pieces for the side to move
+    var onDragStart = function(source, piece, position, orientation) {
+        if (game.game_over() === true ||
+
+            (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
+            return false;
+        }
+    };
+
+    var onDrop = function(source, target) {
+        // see if the move is legal
+       removeGreySquares()
+        var move = game.move({
+            from: source,
+            to: target,
+            promotion: 'q' // NOTE: always promote to a queen for example simplicity
+        });
+
+        // illegal move
+        if (move === null) return 'snapback';
+
+        updateStatus();
+    };
+    var onMouseoverSquare = function(square, piece) {
+        // get list of possible moves for this square
+        var moves = game.moves({
+            square: square,
+            verbose: true
+        });
+
+        // exit if there are no moves available for this square
+        if (moves.length === 0) return;
+
+        // highlight the square they moused over
+        greySquare(square);
+
+        // highlight the possible squares for this piece
+        for (var i = 0; i < moves.length; i++) {
+            greySquare(moves[i].to);
+        }
+    };
+
+    var onMouseoutSquare = function(square, piece) {
+        removeGreySquares();
+    };
+
+    // update the board position after the piece snap
+    // for castling, en passant, pawn promotion
+    var onSnapEnd = function() {
+        board.position(game.fen());
+        if(crpos === histFEN.length - 1) {
+            histFEN.push(game.fen());
+        }else{
+            if(game.fen() !== histFEN[crpos+1]) {
+                dFEN = [];
+                console.log("cr : " + histFEN[crpos]);
+                for (var i = 0; i <= crpos+1; i++)
+                    dFEN.push(histFEN[i])
+                histFEN = dFEN;
+            }
+        }
+        crpos += 1;
+    };
+
+    var updateStatus = function() {
+        var status = '';
+
+            if(crpos >= 3) {
+                $("#b3").show();
+                b3.position(histFEN[crpos - 3])
+            }
+            if(crpos >= 2){
+                $("#b2").show();
+                b2.position(histFEN[crpos-2])
+            }else
+            if(crpos >= 1){
+                $("#b1").show();
+                b1.position(histFEN[crpos-1])
+            }
+            if(crpos < 3 )
+                $("#b3").hide();
+            if(crpos < 2)
+                $("#b2").hide();
+            if(crpos < 1)
+                $("#b1").hide();
+
+        var moveColor = 'White';
+        if (game.turn() === 'b') {
+            $("#rt").removeClass("hde")
+            $("#ldr").addClass("hde")
+            moveColor = 'Black';
+        }else{
+            $("#rt").addClass("hde");
+            $("#ldr").removeClass("hde");
+            setTimeout(()=>{
+                $.get("/move",{'fen': game.fen()},function(data){
+                    console.log(data);
+                    game = new Chess(data);
+                    board.position(game.fen());
+                    if(crpos === histFEN.length - 1) {
+                        histFEN.push(game.fen());
+                    }else{
+                        if(game.fen() !== histFEN[crpos+1]) {
+                            dFEN = [];
+                            for (var i = 0; i <= crpos+1; i++)
+                                dFEN.push(histFEN[i])
+                            histFEN = dFEN;
+                        }
+                    }
+                    crpos += 1;
+
+                    updateStatus();
+                })
+            },500)
+
+        }
+
+        // checkmate?
+        $("#chkm").prop("checked",game.in_checkmate() );
+        $("#chk").prop("checked",game.in_check() );
+        if (game.in_checkmate() === true) {
+
+            status = 'Game over, ' + moveColor + ' is in checkmate.';
+            setTimeout(()=>{
+                alert(status)
+            },600)
+
+        }
+
+        // draw?
+        else if (game.in_draw() === true) {
+            status = 'Game over, drawn position';
+            setTimeout(()=>{
+                alert(status)
+            },600)
+        }
+
+        // game still on
+        else {
+            status = moveColor + ' to move';
+
+            // check?
+            if (game.in_check() === true) {
+
+                status += ', ' + moveColor + ' is in check';
+                setTimeout(()=>{
+                    alert(status)
+                },600)
+            }
+        }
+
+        if(crpos >= 2) {
+            $(".left").removeClass("dis");
+        }
+        else {
+            $(".left").addClass("dis");
+        }
+        if(crpos >= histFEN.length-1) {
+            $(".right").addClass("dis");
+        }
+        else {
+            $(".right").removeClass("dis");
+        }
+
+
+
+    };
+
+    var cfg = {
+        showNotation: false,
+        draggable: true,
+        position: 'start',
+        onDragStart: onDragStart,
+        onDrop: onDrop,
+        onSnapEnd: onSnapEnd,
+        onMouseoutSquare: onMouseoutSquare,
+        onMouseoverSquare: onMouseoverSquare
+    };
+    var bfg = {
+        showNotation: false,
+        position: 'start'
+    };
+    var board = ChessBoard('board', cfg);
+    board = ChessBoard('board', cfg);
+    b1 = ChessBoard('b1',bfg);
+    b2 = ChessBoard('b2',bfg);
+    b3 = ChessBoard('b3',bfg);
+
+
+
+    histFEN.push(game.fen());
+    updateStatus();
+
+    $(".left").click(function () {
+        if(crpos >= 2){
+            crpos -= 2;
+            game = new Chess(histFEN[crpos]);
+            board.position(game.fen());
+            updateStatus();
+        }
+    });
+    $(".right").click(function () {
+        if(crpos < histFEN.length-1){
+            crpos += 2;
+            game = new Chess(histFEN[crpos]);
+            board.position(game.fen());
+            updateStatus();
+        }
+    });
+
+</script>
+
+</body>
+</html>
